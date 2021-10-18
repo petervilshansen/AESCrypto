@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "AESCrypto2021": {
+      "commandName": "Project",
+      "commandLineArgs": "-df cbc out.json dec.txt"
+    }
+  }
+}
