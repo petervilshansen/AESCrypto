@@ -20,17 +20,14 @@ namespace AESCrypto2021
       if (args[0].ToLower().Equals("-ec"))
       {
         string password = args[1];
-        AESUtil.EncryptionMode encryptionMode = args[2].ToLower().Equals("cbc") ? AESUtil.EncryptionMode.CBC : AESUtil.EncryptionMode.GCM;
-        EncryptConsoleInput(encryptionMode, password);
+        EncryptConsoleInput(password);
       }
       else if (args[0].ToLower().Equals("-ef"))
       {
-        string encryptionModeParam = args[1];
-        string password = args[2];
-        string inputFileName = args[3];
-        string outputFileName = args[4];
-        AESUtil.EncryptionMode encryptionMode = encryptionModeParam.ToLower().Equals("cbc") ? AESUtil.EncryptionMode.CBC : AESUtil.EncryptionMode.GCM;
-        EncryptFileInput(encryptionMode, inputFileName, outputFileName, password);
+        string password = args[1];
+        string inputFileName = args[2];
+        string outputFileName = args[3];
+        EncryptFileInput(inputFileName, outputFileName, password);
       }
       else if (args[0].ToLower().Equals("-dc"))
       {
@@ -66,40 +63,40 @@ namespace AESCrypto2021
       Console.WriteLine(Encoding.UTF8.GetString(decrypted));
     }
 
-    private static void EncryptFileInput(AESUtil.EncryptionMode encryptionMode, string inputFileName, string outputFileName, string password)
+    private static void EncryptFileInput(string inputFileName, string outputFileName, string password)
     {
-      EncryptedObject encryptedObject = AESUtil.Encrypt(File.ReadAllBytes(inputFileName), password, encryptionMode);
+      EncryptedObject encryptedObject = AESUtil.Encrypt(File.ReadAllBytes(inputFileName), password);
       File.WriteAllBytes(outputFileName, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(encryptedObject, jsonOptions)));
     }
 
-    private static void EncryptConsoleInput(AESUtil.EncryptionMode encryptionMode, string password)
+    private static void EncryptConsoleInput(string password)
     {
-      EncryptedObject encryptedObject = AESUtil.Encrypt(readInputFromConsole(), password, encryptionMode);
+      EncryptedObject encryptedObject = AESUtil.Encrypt(readInputFromConsole(), password);
       Console.WriteLine(JsonSerializer.Serialize(encryptedObject, jsonOptions));
     }
 
     private static void CheckCommandLineArguments(string[] args)
     {
-      if (args == null || (args.Length < 3 || args.Length > 5)) printUsage();
-      if (args.Length == 3 && !(args[0].ToLower().Equals("-ec") || args[0].ToLower().Equals("-dc") || args[2].ToLower().Equals("cbc") || args[2].ToLower().Equals("gcm"))) printUsage();
-      if (args.Length == 4 && !(args[0].ToLower().Equals("-ef") || args[0].ToLower().Equals("-df"))) printUsage();
+      if (args == null || (args.Length < 2 || args.Length > 4)) printUsage();
+      if (args.Length == 2 && !(args[0].ToLower().Equals("-ec") || args[0].ToLower().Equals("-dc"))) printUsage();
+      if (args.Length == 3 && !(args[0].ToLower().Equals("-ef") || args[0].ToLower().Equals("-df"))) printUsage();
     }
 
     private static void printUsage()
     {
       Console.WriteLine(
         "\n" +
-        "Usage: AESCrypto2021 -ec <password> <CBC | GCM> <input>\n" +
+        "Usage: AESCrypto2021 -ec <password> <input>\n" +
         "   or: AESCrypto2021 -dc <password> <input>\n" +
-        "   or: AESCrypto2021 -ef <password> <CBC | GCM> <input file> <output file>\n" +
+        "   or: AESCrypto2021 -ef <password> <input file> <output file>\n" +
         "   or: AESCrypto2021 -df <password> <input file> <output file>\n" +
         "Examples:\n" +
-        "    Encrypt input from console with password 'foo' (end input with Ctrl+Z, Enter): AESCrypto2021 -ec gcm foo\n" +
+        "    Encrypt input from console with password 'foo' (end input with Ctrl+Z, Enter): AESCrypto2021 -ec foo\n" +
         "    Decrypt input from console with password 'foo' (end input with Ctrl+Z, Enter): AESCrypto2021 -dc foo\n" +
-        "    Encrypt input from console piped in with password 'bar': echo Hello World | AESCrypto2021 -ec cbc bar\n" +
+        "    Encrypt input from console piped in with password 'bar': echo Hello World | AESCrypto2021 -ec bar\n" +
         "    Decrypt input from console piped in with password 'bar': type secret.json | AESCrypto2021 -dc bar\n" +
-        "    Encrypt file 'secret.txt' with password 'jazz': AESCrypto2021 -ef cbc jazz secret.txt encrypted-secret.json\n" +
-        "    Decrypt file 'encrypted-secret.json' with password 'jazz': AESCrypto2021 -df gcm jazz encrypted-secret.json secret.txt"
+        "    Encrypt file 'secret.txt' with password 'jazz': AESCrypto2021 -ef jazz secret.txt encrypted-secret.json\n" +
+        "    Decrypt file 'encrypted-secret.json' with password 'jazz': AESCrypto2021 -df jazz encrypted-secret.json secret.txt"
         );
       Environment.Exit(0);
     }
