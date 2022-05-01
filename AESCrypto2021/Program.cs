@@ -49,35 +49,32 @@ namespace AESCrypto2021
 
     private static void DecryptFileInput(string inputFileName, string outputFileName, string password)
     {
-      var utf8Reader = new Utf8JsonReader(File.ReadAllBytes(inputFileName));
-      EncryptedObject deserialized = JsonSerializer.Deserialize<EncryptedObject>(ref utf8Reader);
-      byte[] decrypted = AESUtil.Decrypt(deserialized, password);
+      byte[] decrypted = AESUtil.Decrypt(File.ReadAllText(inputFileName), password);
       File.WriteAllBytes(outputFileName, decrypted);
     }
 
     private static void DecryptConsoleInput(string password)
     {
-      var utf8Reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(readInputFromConsole()));
-      EncryptedObject deserialized = JsonSerializer.Deserialize<EncryptedObject>(ref utf8Reader);
-      byte[] decrypted = AESUtil.Decrypt(deserialized, password);
-      Console.WriteLine(Encoding.UTF8.GetString(decrypted));
+      string encrypted = readInputFromConsole();
+      string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(encrypted, password));
+      Console.WriteLine(decrypted);
     }
 
     private static void EncryptFileInput(string inputFileName, string outputFileName, string password)
     {
-      EncryptedObject encryptedObject = AESUtil.Encrypt(File.ReadAllBytes(inputFileName), password);
-      File.WriteAllBytes(outputFileName, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(encryptedObject, jsonOptions)));
+      string encryptedBase64 = AESUtil.Encrypt(File.ReadAllBytes(inputFileName), password);
+      File.WriteAllText(outputFileName, encryptedBase64);
     }
 
     private static void EncryptConsoleInput(string password)
     {
-      EncryptedObject encryptedObject = AESUtil.Encrypt(readInputFromConsole(), password);
-      Console.WriteLine(JsonSerializer.Serialize(encryptedObject, jsonOptions));
+      string encrypted = AESUtil.Encrypt(readInputFromConsole(), password);
+      Console.WriteLine(encrypted);
     }
 
     private static void CheckCommandLineArguments(string[] args)
     {
-      if (args == null || (args.Length < 2 || args.Length > 4)) printUsage();
+      if (args == null || args.Length < 2 || args.Length > 4) printUsage();
       if (args.Length == 2 && !(args[0].ToLower().Equals("-ec") || args[0].ToLower().Equals("-dc"))) printUsage();
       if (args.Length == 3 && !(args[0].ToLower().Equals("-ef") || args[0].ToLower().Equals("-df"))) printUsage();
     }
