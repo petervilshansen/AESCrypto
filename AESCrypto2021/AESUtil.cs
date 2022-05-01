@@ -83,7 +83,13 @@ namespace AESCrypto2021
                             ? stackalloc byte[cipherTextSize]
                             : new byte[cipherTextSize];
       using var aes = new AesGcm(deriveEnryptionKey(clearTextPassword, salt));
-      aes.Decrypt(nonce, cipherBytes, tag, plainBytes);
+      try
+      {
+        aes.Decrypt(nonce, cipherBytes, tag, plainBytes);
+      } catch (CryptographicException ce)
+      {
+        throw new Exception("Error during decryption: " + ce.Message);
+      }
 
       return plainBytes.ToArray();
     }
