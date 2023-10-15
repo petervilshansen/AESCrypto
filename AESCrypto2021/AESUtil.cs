@@ -50,8 +50,7 @@ namespace AESCrypto2021
                 // Encrypt
                 password = CreatePassword();
                 Console.WriteLine("Automatically generated secure password (write this down): " + password);
-                Console.WriteLine();
-
+                
                 var derivedEncryptionKey = deriveEnryptionKey(password, salt);
                 using (var aes = new AesGcm(derivedEncryptionKey))
                 {

@@ -102,6 +102,7 @@ namespace AESCrypto2021
             {
                 return;
             }
+            Console.WriteLine();
             Console.WriteLine("--- BEGIN ENCRYPTED ---");
             Console.WriteLine(cipherTextBase64);
             Console.WriteLine("--- BEGIN ENCRYPTED ---");
