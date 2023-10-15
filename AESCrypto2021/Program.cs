@@ -79,27 +79,32 @@ namespace AESCrypto2021
             {
                 return;
             }
+            Console.WriteLine();
+            Console.WriteLine("--- BEGIN DECRYPTED ---");
             Console.WriteLine(decrypted);
+            Console.WriteLine("--- END DECRYPTED ---");
         }
 
         private static void EncryptFileInput(string inputFileName, string outputFileName)
         {
-            string encryptedBase64 = AESUtil.Encrypt(File.ReadAllBytes(inputFileName));
-            if (string.IsNullOrEmpty(encryptedBase64))
+            (string cipherTextBase64, string password) = AESUtil.Encrypt(File.ReadAllBytes(inputFileName));
+            if (string.IsNullOrEmpty(cipherTextBase64))
             {
                 return;
             }
-            File.WriteAllText(outputFileName, encryptedBase64);
+            File.WriteAllText(outputFileName, cipherTextBase64);
         }
 
         private static void EncryptConsoleInput(string plainText)
         {
-            string encrypted = AESUtil.Encrypt(Encoding.UTF8.GetBytes(plainText));
-            if (string.IsNullOrEmpty(encrypted))
+            (string cipherTextBase64, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(plainText));
+            if (string.IsNullOrEmpty(cipherTextBase64))
             {
                 return;
             }
-            Console.WriteLine(encrypted);
+            Console.WriteLine("--- BEGIN ENCRYPTED ---");
+            Console.WriteLine(cipherTextBase64);
+            Console.WriteLine("--- BEGIN ENCRYPTED ---");
         }
 
         private static void CheckCommandLineArguments(string[] args)
@@ -113,21 +118,29 @@ namespace AESCrypto2021
         {
             Console.WriteLine(
               "\n" +
-              "AESCrypto2021 - Copyright (c) 2022 Peter Vils Hansen <peter.vils.hansen@gmail.com>\n" +
+              "AESCrypto2021 - Copyright (c) Peter Vils Hansen <peter.vils.hansen@outlook.com>\n" +
               "\n" +
-              "Easily encrypt data using AES-GCM with 256 bit key size. Password hashed using PBKDF2-HMAC-SHA-256 with 200,001 rounds.\n" +
+              "Easily encrypt data with AES-GCM using cryptographically secure 256-bit keys.\n" +
               "\n" +
-              "Usage: AESCrypto2021 -ec\n" +
-              "   or: AESCrypto2021 -dc\n" +
-              "   or: AESCrypto2021 -ef <input file> <output file>\n" +
-              "   or: AESCrypto2021 -df <input file> <output file>\n" +
-              "Examples:\n" +
+              "A secure password will be generated automatically. It is not possible to input your own password.\n" +
+              "\n" +
+              "Usage:\n" +
               "    Encrypt input from console: AESCrypto2021 -ec\n" +
               "    Decrypt input from console: AESCrypto2021 -dc\n" +
               "    Encrypt file 'secret.txt': AESCrypto2021 -ef secret.txt secret-output.txt\n" +
-              "    Decrypt file 'encrypted-secret.json': AESCrypto2021 -df secret-output.txt decrypted.txt\n" + 
-              "\n" + 
-              "    A secure password will be generated automatically. It is not possible to input your own password."
+              "    Decrypt file 'encrypted-secret.json': AESCrypto2021 -df encrypted-secret.json decrypted-secret.json\n" +
+              "\n" +
+              "Technical details:\n" +
+              "    AESCrypto2021 encrypts data using AES 256 bit encryption using GCM mode. The password used for encryption \n" +
+              "    is generated using a cryptographically secure pseudo-random number generator, and the actual encryption\n" +
+              "    key is derived using Argon2id with parameters m=131072 (1024*128 KB), t=4, and p=8.\n" +
+              "\n" +
+              "Data format:\n" +
+              "    +-------------------------------------------------------------------------------------------------+\n" +
+              "    | Salt (8 bytes) | . | Nonce (12 bytes) | . | Ciphertext (= input size) | . | Auth tag (16 bytes) |\n" +
+              "    +-------------------------------------------------------------------------------------------------+\n" +
+              "\n" +
+              "    Field separator is ASCII code 46 - period/dot/full stop (1 byte)."
               );
             Environment.Exit(0);
         }
@@ -161,7 +174,7 @@ namespace AESCrypto2021
 
         static string readInputFromConsole()
         {
-            Console.WriteLine("Input your message - finish with an empty line (= Enter twice)...");
+            Console.WriteLine("Input your message - press Return/Enter twice to finish...");
             string line;
             string input = "";
             do

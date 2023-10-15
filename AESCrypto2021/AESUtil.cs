@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+﻿using Konscious.Security.Cryptography;
 using System;
 using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
 
 namespace AESCrypto2021
 {
@@ -12,80 +13,93 @@ namespace AESCrypto2021
         public const int KEY_SIZE = 32; // size in bytes = 256 bits
         public const int PBKDF2_ITERATIONS = 200001;
         public const int AUTH_TAG_SIZE = 16;
-        private const int PASSWORD_LENGTH = 25; // length of automatically generated secure password
         private const string TOKEN_DELIMITER = ".";
 
-        internal static string CreatePassword(int length)
+        internal static string CreatePassword()
         {
-            if (length % 5 != 0)
-            {
-                throw new ArgumentException("Password length must be a multiple of 5 in order to facilitate pretty-printing.");
-            }
-            const string valid = "abcdefghijkmnopqrstuvwxyz";
-            StringBuilder res = new StringBuilder();
-            while (0 < length--)
-            {
-                res.Append(valid[RandomNumberGenerator.GetInt32(valid.Length)]);
-                if (length % 5 == 0 && length > 0)
-                {
-                    res.Append("-"); // pretty-print password for user
-                }
-            }
-            return res.ToString();
+            // Generate a 256-bit cryptographically strong AES key and hex-encode it for easy copying and pasting.
+            byte[] randomBytes = RandomNumberGenerator.GetBytes(32);
+            return BitConverter.ToString(randomBytes, 0, randomBytes.Length).Replace("-", "");
         }
-        internal static byte[] deriveEnryptionKey(string clearTextPassword, Span<byte> salt)
+        internal static byte[] deriveEnryptionKey(string password, byte[] salt)
         {
-            // Rfc2898DeriveBytes has been replaced in .NET 6.0:
-            // https://docs.microsoft.com/en-us/aspnet/core/security/data-protection/consumer-apis/password-hashing?view=aspnetcore-6.0
-            byte[] encryptionKey = KeyDerivation.Pbkdf2(clearTextPassword, salt.ToArray(), KeyDerivationPrf.HMACSHA256, PBKDF2_ITERATIONS, KEY_SIZE);
-            return encryptionKey;
+            using var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
+            argon2.Salt = salt;
+            argon2.DegreeOfParallelism = 8;
+            argon2.Iterations = 4;
+            argon2.MemorySize = 1024 * 128;
+
+            return argon2.GetBytes(32);
         }
 
-        public static string Encrypt(byte[] plainBytes)
+        public static (string cipherText, string password) Encrypt(byte[] plainBytes)
         {
             if (plainBytes == null || plainBytes.Length == 0) { throw new Exception("Plaintext cannot be null or empty."); }
 
-            // Generate secure nonce and salt
-            var salt = RandomNumberGenerator.GetBytes(SALT_SIZE);
-            var nonce = RandomNumberGenerator.GetBytes(NONCE_SIZE);
-            var cipherBytes = new byte[plainBytes.AsSpan().Length];
-            var authTag = new byte[AUTH_TAG_SIZE];
+            string cipherText;
+            string password;
 
-            // Encrypt
-            string randomPassword = CreatePassword(PASSWORD_LENGTH);
-            Console.WriteLine("Automatically generated secure password (write this down): " + randomPassword);
-         
-            var derivedEncryptionKey = deriveEnryptionKey(randomPassword, salt);
-            using (var aes = new AesGcm(derivedEncryptionKey))
+            try
             {
-                aes.Encrypt(nonce, plainBytes.AsSpan(), cipherBytes, authTag);
+                // Generate secure nonce and salt
+                var salt = RandomNumberGenerator.GetBytes(SALT_SIZE);
+                var nonce = RandomNumberGenerator.GetBytes(NONCE_SIZE);
+                var cipherBytes = new byte[plainBytes.AsSpan().Length];
+                var authTag = new byte[AUTH_TAG_SIZE];
+
+                // Encrypt
+                password = CreatePassword();
+                Console.WriteLine("Automatically generated secure password (write this down): " + password);
+                Console.WriteLine();
+
+                var derivedEncryptionKey = deriveEnryptionKey(password, salt);
+                using (var aes = new AesGcm(derivedEncryptionKey))
+                {
+                    aes.Encrypt(nonce, plainBytes.AsSpan(), cipherBytes, authTag);
+                }
+
+                // Encode to Base64 for easy transmission
+                cipherText = Convert.ToBase64String(salt) + TOKEN_DELIMITER + Convert.ToBase64String(nonce) + TOKEN_DELIMITER + Convert.ToBase64String(cipherBytes) + TOKEN_DELIMITER + Convert.ToBase64String(authTag);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error during encryption: " + ex.Message);
             }
 
-            // Encode to Base64 for easy transmission
-            return Convert.ToBase64String(salt) + TOKEN_DELIMITER + Convert.ToBase64String(nonce) + TOKEN_DELIMITER + Convert.ToBase64String(cipherBytes) + TOKEN_DELIMITER + Convert.ToBase64String(authTag);
+            return (cipherText, password);
         }
 
 
-        public static byte[] Decrypt(string cipherText, string clearTextPassword)
+        public static byte[] Decrypt(string cipherText, string password)
         {
             // Decode
             var tokens = cipherText.Split(TOKEN_DELIMITER);
             if (tokens.Length != 4)
             {
-                throw new Exception("Bad encrypted data -- expected encrypted data format is: <SALT>.<NONCE>.<CIPHER_TEXT>.<AUTH_TAG> (all Base64-encoded).");
+                throw new Exception("Error during decryption: Bad encrypted data -- expected encrypted data format is: <SALT>.<NONCE>.<CIPHER_TEXT>.<AUTH_TAG> (all Base64-encoded).");
             }
 
-            // Extract parameters
-            var salt = Convert.FromBase64String(tokens[0]).AsSpan();
-            var nonce = Convert.FromBase64String(tokens[1]).AsSpan();
-            var cipherBytes = Convert.FromBase64String(tokens[2]).AsSpan();
-            var authTag = Convert.FromBase64String(tokens[3]).AsSpan();
+            Span<byte> plainBytes;
 
-            // Decrypt
-            Span<byte> plainBytes = new byte[cipherBytes.Length];
-            byte[] derivedKey = deriveEnryptionKey(clearTextPassword, salt);
-            using var aes = new AesGcm(derivedKey);
-            aes.Decrypt(nonce, cipherBytes, authTag, plainBytes);
+            try
+            {
+                // Extract parameters
+                var salt = Convert.FromBase64String(tokens[0]).AsSpan();
+                var nonce = Convert.FromBase64String(tokens[1]).AsSpan();
+                var cipherBytes = Convert.FromBase64String(tokens[2]).AsSpan();
+                var authTag = Convert.FromBase64String(tokens[3]).AsSpan();
+
+                // Decrypt
+                plainBytes = new byte[cipherBytes.Length];
+                byte[] derivedKey = deriveEnryptionKey(password, salt.ToArray());
+                using var aes = new AesGcm(derivedKey);
+
+                aes.Decrypt(nonce, cipherBytes, authTag, plainBytes);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error during decryption: " + ex.Message);
+            }
 
             return plainBytes.ToArray();
         }
