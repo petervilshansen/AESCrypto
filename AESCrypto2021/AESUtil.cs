@@ -15,7 +15,22 @@ namespace AESCrypto2021
         public const int AUTH_TAG_SIZE = 16;
         private const string TOKEN_DELIMITER = ".";
 
-        internal static string CreatePassword()
+        internal static string CreatePasswordPrintableAscii()
+        {
+            // Create a pool of all printable ASCII characters, range ASCII 33 - ASCII 126.
+            var pool = Enumerable.Range(33, 93).Select(x => (char)x).ToArray();
+
+            // log2(93 characters) ~= 6.5 bits per character.
+            // 256 bits / 6.5 bits per character = 39 characters
+            var password = new StringBuilder();
+            for (int i = 0; i < 40; i++)
+            {
+                password.Append(pool[RandomNumberGenerator.GetInt32(pool.Length)]);
+            }
+
+            return password.ToString();
+        }
+        internal static string CreatePasswordHexEncoded()
         {
             // Generate a 256-bit cryptographically strong AES key and hex-encode it for easy copying and pasting.
             byte[] randomBytes = RandomNumberGenerator.GetBytes(32);
@@ -32,33 +47,33 @@ namespace AESCrypto2021
             return argon2.GetBytes(32);
         }
 
-        public static (string cipherText, string password) Encrypt(byte[] plainBytes)
+        public static (string cipherText, string password) Encrypt(byte[] plainTextBytes)
         {
-            if (plainBytes == null || plainBytes.Length == 0) { throw new Exception("Plaintext cannot be null or empty."); }
+            if (plainTextBytes == null || plainTextBytes.Length == 0) { throw new Exception("Plaintext cannot be null or empty."); }
 
             string cipherText;
             string password;
 
             try
             {
-                // Generate secure nonce and salt
-                var salt = RandomNumberGenerator.GetBytes(SALT_SIZE);
-                var nonce = RandomNumberGenerator.GetBytes(NONCE_SIZE);
-                var cipherBytes = new byte[plainBytes.AsSpan().Length];
-                var authTag = new byte[AUTH_TAG_SIZE];
-
                 // Encrypt
-                password = CreatePassword();
+                //password = CreatePasswordHexEncoded();
+                password = CreatePasswordPrintableAscii();
                 Console.WriteLine("Automatically generated secure password (write this down): " + password);
-                
-                var derivedEncryptionKey = deriveEnryptionKey(password, salt);
-                using (var aes = new AesGcm(derivedEncryptionKey))
-                {
-                    aes.Encrypt(nonce, plainBytes.AsSpan(), cipherBytes, authTag);
-                }
 
-                // Encode to Base64 for easy transmission
-                cipherText = Convert.ToBase64String(salt) + TOKEN_DELIMITER + Convert.ToBase64String(nonce) + TOKEN_DELIMITER + Convert.ToBase64String(cipherBytes) + TOKEN_DELIMITER + Convert.ToBase64String(authTag);
+                byte[] encryptionKeySalt = RandomNumberGenerator.GetBytes(SALT_SIZE);
+                var encryptionKey = deriveEnryptionKey(password, encryptionKeySalt);
+                
+                using (var aes = new AesGcm(encryptionKey))
+                {
+                    var aesGcmNonce = RandomNumberGenerator.GetBytes(NONCE_SIZE);
+                    var cipherTextBytes = new byte[plainTextBytes.AsSpan().Length];
+                    var aesGcmAuthTag = new byte[AUTH_TAG_SIZE];
+                    aes.Encrypt(aesGcmNonce, plainTextBytes.AsSpan(), cipherTextBytes, aesGcmAuthTag);
+
+                    // Encode to Base64 for easy transmission
+                    cipherText = Convert.ToBase64String(encryptionKeySalt) + TOKEN_DELIMITER + Convert.ToBase64String(aesGcmNonce) + TOKEN_DELIMITER + Convert.ToBase64String(cipherTextBytes) + TOKEN_DELIMITER + Convert.ToBase64String(aesGcmAuthTag);
+                }
             }
             catch (Exception ex)
             {
@@ -88,12 +103,12 @@ namespace AESCrypto2021
                 var cipherBytes = Convert.FromBase64String(tokens[2]).AsSpan();
                 var authTag = Convert.FromBase64String(tokens[3]).AsSpan();
 
-                // Decrypt
-                plainBytes = new byte[cipherBytes.Length];
-                byte[] derivedKey = deriveEnryptionKey(password, salt.ToArray());
-                using var aes = new AesGcm(derivedKey);
-
-                aes.Decrypt(nonce, cipherBytes, authTag, plainBytes);
+                var encryptionKey = deriveEnryptionKey(password, salt.ToArray());
+                using (var aes = new AesGcm(encryptionKey))
+                {
+                    plainBytes = new byte[cipherBytes.Length];
+                    aes.Decrypt(nonce, cipherBytes, authTag, plainBytes);
+                }
             }
             catch (Exception ex)
             {

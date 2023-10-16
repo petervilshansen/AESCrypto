@@ -132,16 +132,22 @@ namespace AESCrypto2021
               "    Decrypt file 'encrypted-secret.json': AESCrypto2021 -df encrypted-secret.json decrypted-secret.json\n" +
               "\n" +
               "Technical details:\n" +
-              "    AESCrypto2021 encrypts data using AES 256 bit encryption using GCM mode. The password used for encryption \n" +
-              "    is generated using a cryptographically secure pseudo-random number generator, and the actual encryption\n" +
-              "    key is derived using Argon2id with parameters m=131072 (1024*128 KB), t=4, and p=8.\n" +
+              "    AESCrypto2021 encrypts data using AES 256 bit encryption using GCM mode. A 40-character password with\n" +
+              "    characters chosen from the pool of all printable ASCII characters except space (ASCII 33-126) is generated\n" +
+              "    automatically using a cryptographically secure pseudo-random number generator. This ensures that the\n" +
+              "    password is at least as strong as the protection provided by the encryption algorithm. In order to slow\n" +
+              "    down brute-force attacks, the password is put through the Argon2id key derivation function using parameters\n" +
+              "    m=131072 (1024*128 KB), t=4, and p=8 prior to encryption.\n" +
               "\n" +
               "Data format:\n" +
               "    +-------------------------------------------------------------------------------------------------+\n" +
               "    | Salt (8 bytes) | . | Nonce (12 bytes) | . | Ciphertext (= input size) | . | Auth tag (16 bytes) |\n" +
               "    +-------------------------------------------------------------------------------------------------+\n" +
               "\n" +
-              "    Field separator is ASCII code 46 - period/dot/full stop (1 byte)."
+              "    Field separator is ASCII code 46 - period/dot/full stop (1 byte).\n" +
+              "\n" +
+              "Github:\n" +
+              "    https://github.com/petervilshansen/AESCrypto2021"
               );
             Environment.Exit(0);
         }
