@@ -8,6 +8,8 @@ namespace AESCrypto2021
     {
         static void Main(string[] args)
         {
+            PrintHeader();
+
             CheckCommandLineArguments(args);
 
             if (Console.IsInputRedirected)
@@ -53,7 +55,7 @@ namespace AESCrypto2021
                 }
                 else
                 {
-                    printUsage();
+                    PrintUsage();
                 }
             } catch (Exception ex)
             {
@@ -110,18 +112,19 @@ namespace AESCrypto2021
 
         private static void CheckCommandLineArguments(string[] args)
         {
-            if (args == null || args.Length != 1 && args.Length != 3) printUsage();
-            if (args.Length == 1 && !(args[0].ToLower().Equals("-ec") || args[0].ToLower().Equals("-dc"))) printUsage();
-            if (args.Length == 3 && !(args[0].ToLower().Equals("-ef") || args[0].ToLower().Equals("-df"))) printUsage();
+            if (args == null || args.Length != 1 && args.Length != 3) { PrintUsage(); }
+            if (args.Length == 1 && !(args[0].ToLower().Equals("-ec") || args[0].ToLower().Equals("-dc"))) PrintUsage();
+            if (args.Length == 3 && !(args[0].ToLower().Equals("-ef") || args[0].ToLower().Equals("-df"))) PrintUsage();
         }
 
-        private static void printUsage()
+        private static void PrintHeader() {
+            Console.WriteLine("\nAESCrypto2021 - Copyright (c) Peter Vils Hansen <peter.vils.hansen@outlook.com>\n");
+        }
+
+        private static void PrintUsage()
         {
             Console.WriteLine(
-              "\n" +
-              "AESCrypto2021 - Copyright (c) Peter Vils Hansen <peter.vils.hansen@outlook.com>\n" +
-              "\n" +
-              "Easily encrypt data with AES-GCM using cryptographically secure 256-bit keys.\n" +
+              "Easily encrypt data with AES-128-GCM using cryptographically secure, random passwords.\n" +
               "\n" +
               "A secure password will be generated automatically. It is not possible to input your own password.\n" +
               "\n" +
@@ -132,12 +135,11 @@ namespace AESCrypto2021
               "    Decrypt file 'encrypted-secret.json': AESCrypto2021 -df encrypted-secret.json decrypted-secret.json\n" +
               "\n" +
               "Technical details:\n" +
-              "    AESCrypto2021 encrypts data using AES 256 bit encryption using GCM mode. A 40-character password with\n" +
-              "    characters chosen from the pool of all printable ASCII characters except space (ASCII 33-126) is generated\n" +
-              "    automatically using a cryptographically secure pseudo-random number generator. This ensures that the\n" +
-              "    password is at least as strong as the protection provided by the encryption algorithm. In order to slow\n" +
-              "    down brute-force attacks, the password is put through the Argon2id key derivation function using parameters\n" +
-              "    m=131072 (1024*128 KB), t=4, and p=8 prior to encryption.\n" +
+              "    AESCrypto2021 encrypts data using AES 128 bit encryption in GCM mode. A 16-character password with\n" +
+              "    characters chosen from the pool of all printable ASCII characters except space (i.e., ASCII 33-126) is\n" +
+              "    automatically generated using a cryptographically secure pseudo-random number generator. Further protection\n" +
+              "    against brute-force attacks is achieved through use of the Argon2id key derivation function with parameters\n" +
+              "    m=1GB, t=4, and p=8, applied to the password prior to encryption.\n" +
               "\n" +
               "Data format:\n" +
               "    +-------------------------------------------------------------------------------------------------+\n" +
