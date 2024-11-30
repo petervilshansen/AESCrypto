@@ -89,7 +89,6 @@ namespace AESCrypto2021
 
                 Console.WriteLine("Automatically generated secure password (write this down): " + password);
 
-                Console.WriteLine("Hashing password with Argon2id, this could take a moment...");
                 byte[] encryptionKeySalt = RandomNumberGenerator.GetBytes(Argon2idSaltSizeInBytes);
                 var encryptionKey = deriveEnryptionKey(password, encryptionKeySalt);
 
