@@ -1,21 +1,16 @@
-﻿using Konscious.Security.Cryptography;
-using System;
+﻿using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Linq;
-using System.Collections;
 
-namespace AESCrypto2021
+namespace AESCrypto
 {
     public static class AESUtil
     {
-        public const int Argon2idSaltSizeInBytes = 16; // size in bytes
-        public const int AesKeySizeInBytes = 16; // size in bytes = 256 bits
-        private const string TokenDelimiter = ".";
-        private const int DegreeOfParallelism = 8; // four cores
-        private const int NumberOfIterations = 4; // four iterations
-        private const int MemoryToUseInKB = 1024 * 1024; // 1 GB
-        private const int PasswordLength = 16;
+        public const int ARGON2ID_SALT_SIZE_BYTES = 16; // size in bytes; recommended size is 128 bits
+        private const int PASSWORD_LENGTH = 40; // log2(94^40) = shorted password length that gives >= 256 bits of entropy
+        private const int ASCII_PRINTABLE_LOW_CHAR = 33;
+        private const int ASCII_NUM_PRINTABLE_CHARS = 93; // ASCII 33 -> 126
 
         /*
             How long should my password be? Read this post by Jeremi Gosney:
@@ -43,34 +38,27 @@ namespace AESCrypto2021
             password (94^16) would take more than 1.2 billion years to crack, again not including the Argon2id hashing.
 
         */
-        internal static string CreatePasswordPrintableAscii()
+        internal static (string, int) CreatePasswordPrintableAscii()
         {
             // Create a pool of all printable ASCII characters, excluding space (ASCII 33 - ASCII 126).
-            var pool = Enumerable.Range(33, 94).Select(x => (char)x).ToArray();
+            var pool = Enumerable.Range(ASCII_PRINTABLE_LOW_CHAR, ASCII_NUM_PRINTABLE_CHARS).Select(x => (char)x).ToArray();
+            Console.WriteLine("Password character pool:");
+            Console.WriteLine(pool);
 
             var password = new StringBuilder();
-            for (int i = 0; i < PasswordLength; i++)
+            for (int i = 0; i < PASSWORD_LENGTH; i++)
             {
+                // Beware modulo bias!
                 password.Append(pool[RandomNumberGenerator.GetInt32(pool.Length)]);
             }
 
-            return password.ToString();
+            return ( password.ToString(), (int)Math.Floor(Math.Log2(Math.Pow(pool.Length, password.Length))) );
         }
-        internal static string CreatePasswordHexEncoded()
-        {
-            // Generate a cryptographically strong AES key and hex-encode it for easy copying and pasting.
-            byte[] randomBytes = RandomNumberGenerator.GetBytes(AesKeySizeInBytes);
-            return BitConverter.ToString(randomBytes, 0, randomBytes.Length).Replace("-", "");
-        }
-        internal static byte[] deriveEnryptionKey(string password, byte[] salt)
-        {
-            using var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
-            argon2.Salt = salt;
-            argon2.DegreeOfParallelism = DegreeOfParallelism;
-            argon2.Iterations = NumberOfIterations;
-            argon2.MemorySize = MemoryToUseInKB;
 
-            return argon2.GetBytes(AesKeySizeInBytes);
+        public static (string cipherText, string password) Encrypt(string plainText)
+        {
+            var plainTextBytes = new byte[Encoding.UTF8.GetBytes(plainText).Length];
+            return Encrypt(plainTextBytes);
         }
 
         public static (string cipherText, string password) Encrypt(byte[] plainTextBytes)
@@ -79,29 +67,38 @@ namespace AESCrypto2021
 
             string cipherText;
             string password;
+            int entropy;
 
             try
             {
                 // Encrypt
-                //password = CreatePasswordHexEncoded();
                 Console.WriteLine("Generating secure password...");
-                password = CreatePasswordPrintableAscii();
+                (password, entropy) = CreatePasswordPrintableAscii();
 
-                Console.WriteLine("Automatically generated secure password (write this down): " + password);
+                Console.WriteLine("Automatically generated secure password (write this down): \n\n" + password + "\n\nEntropy: " + entropy + " bits.");
 
-                byte[] encryptionKeySalt = RandomNumberGenerator.GetBytes(Argon2idSaltSizeInBytes);
-                var encryptionKey = deriveEnryptionKey(password, encryptionKeySalt);
+                byte[] argonSalt = RandomNumberGenerator.GetBytes(ARGON2ID_SALT_SIZE_BYTES);
+                var encryptionKey = Argon2.deriveEnryptionKey(password, argonSalt);
 
-                using (var aes = new AesGcm(encryptionKey))
+                using (var aes = new AesGcm(encryptionKey, AesGcm.TagByteSizes.MaxSize))
                 {
                     Console.WriteLine("Encrypting...");
-                    var aesGcmNonce = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);
-                    var cipherTextBytes = new byte[plainTextBytes.AsSpan().Length];
-                    var aesGcmAuthTag = new byte[AesGcm.TagByteSizes.MaxSize];
-                    aes.Encrypt(aesGcmNonce, plainTextBytes.AsSpan(), cipherTextBytes, aesGcmAuthTag);
+                    
+                    var nonce = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);
+                    var cipherTextBytes = new byte[plainTextBytes.Length];
+                    var tag = new byte[AesGcm.TagByteSizes.MaxSize];
 
-                    // Encode to Base64 for easy transmission
-                    cipherText = Convert.ToBase64String(encryptionKeySalt) + TokenDelimiter + Convert.ToBase64String(aesGcmNonce) + TokenDelimiter + Convert.ToBase64String(cipherTextBytes) + TokenDelimiter + Convert.ToBase64String(aesGcmAuthTag);
+                    aes.Encrypt(nonce, plainTextBytes, cipherTextBytes, tag);
+
+                    // Encode to Base64 for easy transmission. Use Buffer.BlockCopy for best performance, according to https://code-maze.com/csharp-merge-arrays/
+                    byte[] outputBytes = new byte[argonSalt.Length + nonce.Length + cipherTextBytes.Length + tag.Length];
+                    
+                    Buffer.BlockCopy(argonSalt, 0, outputBytes, 0, argonSalt.Length);
+                    Buffer.BlockCopy(nonce, 0, outputBytes, argonSalt.Length, nonce.Length);
+                    Buffer.BlockCopy(tag, 0, outputBytes, argonSalt.Length + nonce.Length, tag.Length);
+                    Buffer.BlockCopy(cipherTextBytes, 0, outputBytes, argonSalt.Length + nonce.Length + tag.Length, cipherTextBytes.Length);
+                    
+                    cipherText = Convert.ToBase64String(outputBytes.ToArray());
                 }
             }
             catch (Exception ex)
@@ -115,29 +112,23 @@ namespace AESCrypto2021
 
         public static byte[] Decrypt(string cipherText, string password)
         {
-            // Decode
-            var tokens = cipherText.Split(TokenDelimiter);
-            if (tokens.Length != 4)
-            {
-                throw new Exception("Error during decryption: Bad encrypted data -- expected encrypted data format is: <SALT>.<NONCE>.<CIPHER_TEXT>.<AUTH_TAG> (all Base64-encoded).");
-            }
-
-            Span<byte> plainBytes;
+            byte[] plainBytes;
 
             try
             {
                 // Extract parameters
-                var salt = Convert.FromBase64String(tokens[0]).AsSpan();
-                var nonce = Convert.FromBase64String(tokens[1]).AsSpan();
-                var cipherBytes = Convert.FromBase64String(tokens[2]).AsSpan();
-                var authTag = Convert.FromBase64String(tokens[3]).AsSpan();
+                byte[] cipherTextBytes = Convert.FromBase64String(cipherText);
 
-                Console.WriteLine("Hashing password with Argon2id, this could take a moment...");
-                var encryptionKey = deriveEnryptionKey(password, salt.ToArray());
-                using (var aes = new AesGcm(encryptionKey))
+                var salt = new ArraySegment<byte>(cipherTextBytes, 0, ARGON2ID_SALT_SIZE_BYTES);
+                var nonce = new ArraySegment<byte>(cipherTextBytes, ARGON2ID_SALT_SIZE_BYTES, AesGcm.NonceByteSizes.MaxSize);
+                var authTag = new ArraySegment<byte>(cipherTextBytes, ARGON2ID_SALT_SIZE_BYTES + AesGcm.NonceByteSizes.MaxSize, AesGcm.TagByteSizes.MaxSize);
+                var cipherBytes = new ArraySegment<byte>(cipherTextBytes, ARGON2ID_SALT_SIZE_BYTES + AesGcm.NonceByteSizes.MaxSize + AesGcm.TagByteSizes.MaxSize, cipherTextBytes.Length - (ARGON2ID_SALT_SIZE_BYTES + AesGcm.NonceByteSizes.MaxSize + AesGcm.TagByteSizes.MaxSize));
+                
+                var encryptionKey = Argon2.deriveEnryptionKey(password, salt.ToArray());
+                using (var aes = new AesGcm(encryptionKey, AesGcm.TagByteSizes.MaxSize))
                 {
                     Console.WriteLine("Decrypting...");
-                    plainBytes = new byte[cipherBytes.Length];
+                    plainBytes = new byte[cipherBytes.Count];
                     aes.Decrypt(nonce, cipherBytes, authTag, plainBytes);
                 }
             }
@@ -146,7 +137,7 @@ namespace AESCrypto2021
                 throw new Exception("Error during decryption: " + ex.Message);
             }
 
-            return plainBytes.ToArray();
+            return plainBytes;
         }
     }
 }

@@ -1,8 +1,8 @@
 {
   "profiles": {
-    "AESCrypto2021": {
+    "AESCrypto": {
       "commandName": "Project",
-      "commandLineArgs": "-ec gcm foo"
+      "commandLineArgs": "-ec"
     }
   }
 }

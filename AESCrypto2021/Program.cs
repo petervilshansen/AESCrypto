@@ -2,7 +2,7 @@
 using System.IO;
 using System.Text;
 
-namespace AESCrypto2021
+namespace AESCrypto
 {
     class Program
     {
@@ -77,6 +77,7 @@ namespace AESCrypto2021
         {
             string password = readPassphraseFromConsole();
             string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password));
+            Console.WriteLine("Hello => " + Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password)));
             if (string.IsNullOrEmpty(decrypted))
             {
                 return;
@@ -124,29 +125,29 @@ namespace AESCrypto2021
         private static void PrintUsage()
         {
             Console.WriteLine(
-              "Easily encrypt data with AES-128-GCM using cryptographically secure, random passwords.\n" +
+              "Easily encrypt data with AES-256-GCM using cryptographically secure, random passwords.\n" +
               "\n" +
-              "A secure password will be generated automatically. It is not possible to input your own password.\n" +
+              "A secure password will be generated for you automatically. It is not possible to input your own password.\n" +
               "\n" +
               "Usage:\n" +
               "    Encrypt input from console: AESCrypto2021 -ec\n" +
               "    Decrypt input from console: AESCrypto2021 -dc\n" +
-              "    Encrypt file 'secret.txt': AESCrypto2021 -ef secret.txt secret-output.txt\n" +
-              "    Decrypt file 'encrypted-secret.json': AESCrypto2021 -df encrypted-secret.json decrypted-secret.json\n" +
+              "    Encrypt file 'secret.txt': AESCrypto2021 -ef input.txt output.txt\n" +
+              "    Decrypt file 'encrypted.json': AESCrypto2021 -df encrypted.json decrypted.json\n" +
               "\n" +
               "Technical details:\n" +
-              "    AESCrypto2021 encrypts data using AES 128 bit encryption in GCM mode. A 16-character password with\n" +
+              "    AESCrypto2021 encrypts data using AES 256 bit encryption in GCM mode. A 40-character password with\n" +
               "    characters chosen from the pool of all printable ASCII characters except space (i.e., ASCII 33-126) is\n" +
               "    automatically generated using a cryptographically secure pseudo-random number generator. Further protection\n" +
               "    against brute-force attacks is achieved through use of the Argon2id key derivation function with parameters\n" +
-              "    m=1GB, t=4, and p=8, applied to the password prior to encryption.\n" +
+              "    m=1GB, t=4, and p=4, applied to the password prior to encryption.\n" +
               "\n" +
               "Data format:\n" +
-              "    +-------------------------------------------------------------------------------------------------+\n" +
-              "    | Salt (8 bytes) | . | Nonce (12 bytes) | . | Ciphertext (= input size) | . | Auth tag (16 bytes) |\n" +
-              "    +-------------------------------------------------------------------------------------------------+\n" +
+              "    +-----------------------------------------------------------------------------------------------+\n" +
+              "    | Salt (8 bytes) | Nonce (12 bytes) | Ciphertext (= input size) | Authentication tag (16 bytes) |\n" +
+              "    +-----------------------------------------------------------------------------------------------+\n" +
               "\n" +
-              "    Field separator is ASCII code 46 - period/dot/full stop (1 byte).\n" +
+              "    Data is Base64-encoded.\n" +
               "\n" +
               "Github:\n" +
               "    https://github.com/petervilshansen/AESCrypto2021"

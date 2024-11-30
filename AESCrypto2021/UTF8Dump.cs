@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Text;
 
-namespace AESCrypto2021
+namespace AESCrypto
 {
   class UTF8Dump
   {
