@@ -8,7 +8,7 @@ namespace AESCrypto
     public static class AESUtil
     {
         public const int ARGON2ID_SALT_SIZE_BYTES = 16; // size in bytes; recommended size is 128 bits
-        private const int PASSWORD_LENGTH = 40; // log2(94^40) = shorted password length that gives >= 256 bits of entropy
+        private const int PASSWORD_LENGTH = 40; // log2(94^40) = shortest password length that gives >= 256 bits of entropy
         private const int ASCII_PRINTABLE_LOW_CHAR = 33;
         private const int ASCII_NUM_PRINTABLE_CHARS = 93; // ASCII 33 -> 126
 
@@ -126,7 +126,7 @@ namespace AESCrypto
                 Buffer.BlockCopy(cipherTextInputBytes, 0, argonSalt, 0, argonSalt.Length);
                 Buffer.BlockCopy(cipherTextInputBytes, argonSalt.Length, nonce, 0, nonce.Length);
                 Buffer.BlockCopy(cipherTextInputBytes, argonSalt.Length + nonce.Length, tag, 0, tag.Length);
-                Buffer.BlockCopy(cipherTextInputBytes, argonSalt.Length + nonce.Length + tag.Length, cipherTextBytes, 0, cipherTextInputBytes.Length - (argonSalt.Length + nonce.Length + tag.Length));
+                Buffer.BlockCopy(cipherTextInputBytes, argonSalt.Length + nonce.Length + tag.Length, cipherTextBytes, 0, cipherTextBytes.Length);
 
                 var encryptionKey = Argon2.deriveEnryptionKey(password, argonSalt);
 
