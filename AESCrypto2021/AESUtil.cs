@@ -97,7 +97,7 @@ namespace AESCrypto
                     Buffer.BlockCopy(nonce, 0, outputBytes, argonSalt.Length, nonce.Length);
                     Buffer.BlockCopy(tag, 0, outputBytes, argonSalt.Length + nonce.Length, tag.Length);
                     Buffer.BlockCopy(cipherTextBytes, 0, outputBytes, argonSalt.Length + nonce.Length + tag.Length, cipherTextBytes.Length);
-                    
+
                     cipherText = Convert.ToBase64String(outputBytes.ToArray());
                 }
             }
@@ -110,26 +110,31 @@ namespace AESCrypto
         }
 
 
-        public static byte[] Decrypt(string cipherText, string password)
+        public static byte[] Decrypt(string cipherTextInput, string password)
         {
             byte[] plainBytes;
 
+            // Extract parameters
+            byte[] cipherTextInputBytes = Convert.FromBase64String(cipherTextInput);
+            byte[] argonSalt = new byte[ARGON2ID_SALT_SIZE_BYTES];
+            byte[] nonce = new byte[AesGcm.NonceByteSizes.MaxSize];
+            byte[] tag = new byte[AesGcm.TagByteSizes.MaxSize];
+            byte[] cipherTextBytes = new byte[cipherTextInputBytes.Length - argonSalt.Length - nonce.Length - tag.Length];
+
             try
             {
-                // Extract parameters
-                byte[] cipherTextBytes = Convert.FromBase64String(cipherText);
+                Buffer.BlockCopy(cipherTextInputBytes, 0, argonSalt, 0, argonSalt.Length);
+                Buffer.BlockCopy(cipherTextInputBytes, argonSalt.Length, nonce, 0, nonce.Length);
+                Buffer.BlockCopy(cipherTextInputBytes, argonSalt.Length + nonce.Length, tag, 0, tag.Length);
+                Buffer.BlockCopy(cipherTextInputBytes, argonSalt.Length + nonce.Length + tag.Length, cipherTextBytes, 0, cipherTextInputBytes.Length - (argonSalt.Length + nonce.Length + tag.Length));
 
-                var salt = new ArraySegment<byte>(cipherTextBytes, 0, ARGON2ID_SALT_SIZE_BYTES);
-                var nonce = new ArraySegment<byte>(cipherTextBytes, ARGON2ID_SALT_SIZE_BYTES, AesGcm.NonceByteSizes.MaxSize);
-                var authTag = new ArraySegment<byte>(cipherTextBytes, ARGON2ID_SALT_SIZE_BYTES + AesGcm.NonceByteSizes.MaxSize, AesGcm.TagByteSizes.MaxSize);
-                var cipherBytes = new ArraySegment<byte>(cipherTextBytes, ARGON2ID_SALT_SIZE_BYTES + AesGcm.NonceByteSizes.MaxSize + AesGcm.TagByteSizes.MaxSize, cipherTextBytes.Length - (ARGON2ID_SALT_SIZE_BYTES + AesGcm.NonceByteSizes.MaxSize + AesGcm.TagByteSizes.MaxSize));
-                
-                var encryptionKey = Argon2.deriveEnryptionKey(password, salt.ToArray());
+                var encryptionKey = Argon2.deriveEnryptionKey(password, argonSalt);
+
                 using (var aes = new AesGcm(encryptionKey, AesGcm.TagByteSizes.MaxSize))
                 {
                     Console.WriteLine("Decrypting...");
-                    plainBytes = new byte[cipherBytes.Count];
-                    aes.Decrypt(nonce, cipherBytes, authTag, plainBytes);
+                    plainBytes = new byte[cipherTextBytes.Length];
+                    aes.Decrypt(nonce, cipherTextBytes, tag, plainBytes);
                 }
             }
             catch (Exception ex)

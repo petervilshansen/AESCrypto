@@ -77,7 +77,6 @@ namespace AESCrypto
         {
             string password = readPassphraseFromConsole();
             string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password));
-            Console.WriteLine("Hello => " + Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password)));
             if (string.IsNullOrEmpty(decrypted))
             {
                 return;
