@@ -99,6 +99,12 @@ namespace AESCrypto
                     Buffer.BlockCopy(cipherTextBytes, 0, outputBytes, argonSalt.Length + nonce.Length + tag.Length, cipherTextBytes.Length);
 
                     cipherText = Convert.ToBase64String(outputBytes.ToArray());
+
+                    Console.WriteLine("Debug information: ");
+                    Console.WriteLine("Key: " + Convert.ToBase64String(encryptionKey));
+                    Console.WriteLine("Nonce: " + Convert.ToBase64String(nonce) + ", size: " + AesGcm.NonceByteSizes.MaxSize);
+                    Console.WriteLine("Tag: " + Convert.ToBase64String(tag) + ", size: " + AesGcm.TagByteSizes.MaxSize);
+                    Console.WriteLine("Ciphertext: " + Convert.ToBase64String(cipherTextBytes));
                 }
             }
             catch (Exception ex)
