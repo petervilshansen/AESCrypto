@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AESCrypto2021\AESCrypto.csproj" />
+    <ProjectReference Include="..\AESCrypto\AESCrypto.csproj" />
   </ItemGroup>
 
 </Project>

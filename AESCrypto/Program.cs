@@ -110,7 +110,7 @@ namespace AESCrypto
         }
 
         private static void PrintHeader() {
-            Console.WriteLine("\nAESCrypto2021 - Copyright (c) Peter Vils Hansen <peter.vils.hansen@outlook.com>\n");
+            Console.WriteLine("\nAESCrypto - Copyright (c) Peter Vils Hansen <peter.vils.hansen@outlook.com>\n");
         }
 
         private static void PrintUsage()
@@ -121,13 +121,13 @@ namespace AESCrypto
               "A secure password will be generated for you automatically. It is not possible to input your own password.\n" +
               "\n" +
               "Usage:\n" +
-              "    Encrypt input from console: AESCrypto2021 -ec\n" +
-              "    Decrypt input from console: AESCrypto2021 -dc\n" +
-              "    Encrypt file 'secret.txt': AESCrypto2021 -ef input.txt output.txt\n" +
-              "    Decrypt file 'encrypted.json': AESCrypto2021 -df encrypted.json decrypted.json\n" +
+              "    Encrypt input from console: AESCrypto -ec\n" +
+              "    Decrypt input from console: AESCrypto -dc\n" +
+              "    Encrypt file 'secret.txt': AESCrypto -ef input.txt output.txt\n" +
+              "    Decrypt file 'encrypted.json': AESCrypto -df encrypted.json decrypted.json\n" +
               "\n" +
               "Technical details:\n" +
-              "    AESCrypto2021 encrypts data using AES-"+AESUtil.KEY_SIZE_BYTES*8+" bit encryption in GCM mode. A password with\n" +
+              "    AESCrypto encrypts data using AES-"+AESUtil.KEY_SIZE_BYTES*8+" bit encryption in GCM mode. A password with\n" +
               "    characters chosen from the pool of all printable ASCII characters except space (i.e., ASCII 33-126) is\n" +
               "    automatically generated using a cryptographically secure pseudo-random number generator. Further protection\n" +
               "    against brute-force attacks is achieved through use of the Argon2id key derivation function with parameters\n" +
@@ -141,7 +141,7 @@ namespace AESCrypto
               "    All output data is Base64-encoded. Salt is input to Argon2id, nonce is used an initialisation vector for AES-GCM.\n" +
               "\n" +
               "Github:\n" +
-              "    https://github.com/petervilshansen/AESCrypto2021" +
+              "    https://github.com/petervilshansen/AESCrypto" +
               "\n"
               );
             Environment.Exit(0);
