@@ -20,7 +20,7 @@ namespace AESCrypto.Tests
         [TestMethod()]
         public void EncryptDecryptTestTextInput()
         {
-            (string cipherText, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes("Hello World"));
+            (string password, byte[] key, byte[] cipherText) = AESUtil.Encrypt(Encoding.UTF8.GetBytes("Hello World"));
             string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password));
             Assert.AreEqual("Hello World", decrypted);
         }

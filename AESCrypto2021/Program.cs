@@ -89,7 +89,7 @@ namespace AESCrypto
 
         private static void EncryptFileInput(string inputFileName, string outputFileName)
         {
-            (string cipherTextBase64, string password) = AESUtil.Encrypt(File.ReadAllBytes(inputFileName));
+            (byte[] key, byte[] nonce, byte[] tag, byte[] cipherText) = AESUtil.Encrypt(File.ReadAllBytes(inputFileName));
             if (string.IsNullOrEmpty(cipherTextBase64))
             {
                 return;

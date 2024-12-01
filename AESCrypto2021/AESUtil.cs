@@ -112,7 +112,7 @@ namespace AESCrypto
                 throw new Exception("Error during encryption: " + ex.Message);
             }
 
-            return (cipherText, password);
+            return (password, key, output);
         }
 
 
