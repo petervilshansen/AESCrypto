@@ -89,24 +89,16 @@ namespace AESCrypto
 
         private static void EncryptFileInput(string inputFileName, string outputFileName)
         {
-            (byte[] key, byte[] nonce, byte[] tag, byte[] cipherText) = AESUtil.Encrypt(File.ReadAllBytes(inputFileName));
-            if (string.IsNullOrEmpty(cipherTextBase64))
-            {
-                return;
-            }
-            File.WriteAllText(outputFileName, cipherTextBase64);
+            AesRecord aesRecord = AESUtil.Encrypt(File.ReadAllBytes(inputFileName));
+            File.WriteAllText(outputFileName, Convert.ToBase64String(aesRecord.cipherText));
         }
 
         private static void EncryptConsoleInput(string plainText)
         {
-            (string cipherTextBase64, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(plainText));
-            if (string.IsNullOrEmpty(cipherTextBase64))
-            {
-                return;
-            }
+            AesRecord aesRecord = AESUtil.Encrypt(plainText);
             Console.WriteLine();
             Console.WriteLine("--- BEGIN ENCRYPTED ---");
-            Console.WriteLine(cipherTextBase64);
+            Console.WriteLine(Convert.ToBase64String(aesRecord.payload));
             Console.WriteLine("--- BEGIN ENCRYPTED ---");
         }
 
@@ -124,7 +116,7 @@ namespace AESCrypto
         private static void PrintUsage()
         {
             Console.WriteLine(
-              "Easily encrypt data with AES-256-GCM using cryptographically secure, random passwords.\n" +
+              "Easily encrypt data with AES-"+AESUtil.KEY_SIZE_BYTES*8+"-GCM using cryptographically secure, random passwords.\n" +
               "\n" +
               "A secure password will be generated for you automatically. It is not possible to input your own password.\n" +
               "\n" +
@@ -135,21 +127,22 @@ namespace AESCrypto
               "    Decrypt file 'encrypted.json': AESCrypto2021 -df encrypted.json decrypted.json\n" +
               "\n" +
               "Technical details:\n" +
-              "    AESCrypto2021 encrypts data using AES 256 bit encryption in GCM mode. A 40-character password with\n" +
+              "    AESCrypto2021 encrypts data using AES-"+AESUtil.KEY_SIZE_BYTES*8+" bit encryption in GCM mode. A password with\n" +
               "    characters chosen from the pool of all printable ASCII characters except space (i.e., ASCII 33-126) is\n" +
               "    automatically generated using a cryptographically secure pseudo-random number generator. Further protection\n" +
               "    against brute-force attacks is achieved through use of the Argon2id key derivation function with parameters\n" +
-              "    m=1GB, t=4, and p=4, applied to the password prior to encryption.\n" +
+              "    m="+Argon2.MEMORY_TO_USE_KILOBYTES+" KB, t="+Argon2.DEGREE_OF_PARALLELLISM+", and p="+Argon2.NUMBER_OF_ITERATIONS+", applied to the password prior to encryption.\n" +
               "\n" +
               "Data format:\n" +
-              "    +-----------------------------------------------------------------------------------------------+\n" +
-              "    | Salt (8 bytes) | Nonce (12 bytes) | Ciphertext (= input size) | Authentication tag (16 bytes) |\n" +
-              "    +-----------------------------------------------------------------------------------------------+\n" +
+              "    +------------------------------------------------------------------------------------------------+\n" +
+              "    | Salt ("+Argon2.SALT_SIZE_BYTES+" bytes) | Nonce ("+AESUtil.NONCE_SIZE_BYTES+" bytes) | Ciphertext (= input size) | Authentication tag ("+AESUtil.TAG_SIZE_BYTES+" bytes) |\n" +
+              "    +------------------------------------------------------------------------------------------------+\n" +
               "\n" +
-              "    Data is Base64-encoded.\n" +
+              "    All output data is Base64-encoded. Salt is input to Argon2id, nonce is used an initialisation vector for AES-GCM.\n" +
               "\n" +
               "Github:\n" +
-              "    https://github.com/petervilshansen/AESCrypto2021"
+              "    https://github.com/petervilshansen/AESCrypto2021" +
+              "\n"
               );
             Environment.Exit(0);
         }
