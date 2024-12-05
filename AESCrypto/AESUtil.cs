@@ -2,6 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Linq;
+using System.Diagnostics.Metrics;
 
 namespace AESCrypto
 {
@@ -24,7 +25,7 @@ namespace AESCrypto
         public const int ASCII_PRINTABLE_LOW_CHAR = 33;
         public const int ASCII_NUM_PRINTABLE_CHARS = 93; // ASCII 33 -> 126
         public static readonly int TAG_SIZE_BYTES = AesGcm.TagByteSizes.MaxSize;
-        public static readonly int NONCE_SIZE_BYTES = AesGcm.NonceByteSizes.MaxSize;
+        public static readonly int NONCE_SIZE_BYTES = AesGcm.NonceByteSizes.MaxSize; // Note: AesGcm.NonceByteSizes.MinSize == AesGcm.NonceByteSizes.MaxSize == 12 bytes.
 
         /*
             How long should my password be? Read this post by Jeremi Gosney:
@@ -69,23 +70,13 @@ namespace AESCrypto
             return ( password.ToString(), (int)Math.Floor(Math.Log2(Math.Pow(pool.Length, password.Length))) );
         }
 
-        public static AesRecord Encrypt(string plainText)
-        {
-            return Encrypt(Encoding.UTF8.GetBytes(plainText));
-        }
 
-        public static AesRecord Encrypt(byte[] plainText)
+        public static (byte[] cipherText, string password) Encrypt(byte[] plainText)
         {
             if (plainText == null || plainText.Length == 0) { throw new Exception("Plaintext cannot be null or empty."); }
 
             string password;
             int entropy;
-            byte[] salt;
-            byte[] nonce;
-            byte[] cipherText;
-            byte[] tag;
-            byte[] derivedKey;
-            byte[] payload;
 
             try
             {
@@ -95,59 +86,50 @@ namespace AESCrypto
 
                 Console.WriteLine("Automatically generated secure password (write this down): \n\n" + password + "\n\nEntropy: " + entropy + " bits.");
 
-                salt = RandomNumberGenerator.GetBytes(Argon2.SALT_SIZE_BYTES);
-                derivedKey = Argon2.deriveEnryptionKey(password, salt);
+                byte[] salt = RandomNumberGenerator.GetBytes(Argon2.SALT_SIZE_BYTES);
+                byte[] derivedKey = Argon2.deriveEnryptionKey(password, salt);
 
                 using (var aes = new AesGcm(derivedKey, TAG_SIZE_BYTES))
                 {
                     Console.WriteLine("Encrypting...");
 
-                    nonce = RandomNumberGenerator.GetBytes(NONCE_SIZE_BYTES);
-                    cipherText = new byte[plainText.Length];
-                    tag = new byte[TAG_SIZE_BYTES];
+                    // The nonce does not have to be random, it can be a counter. But it absolutely must be unique for each message encrypted
+                    // with the same key. Using GCM on two different messages with the same key and nonce basically allows an attacker to decrypt
+                    // both messages and forge further messages.
+
+                    byte[] nonce = RandomNumberGenerator.GetBytes(NONCE_SIZE_BYTES);
+                    byte[] cipherText = new byte[plainText.Length];
+                    byte[] tag = new byte[TAG_SIZE_BYTES];
 
                     aes.Encrypt(nonce, plainText, cipherText, tag);
 
                     // Encode to Base64 for easy transmission. Use Buffer.BlockCopy for best performance, according to https://code-maze.com/csharp-merge-arrays/
-                    payload = new byte[salt.Length + nonce.Length + cipherText.Length + tag.Length];
+                    byte[] returnValue = new byte[salt.Length + nonce.Length + cipherText.Length + tag.Length];
                     
-                    Buffer.BlockCopy(salt, 0, payload, 0, salt.Length);
-                    Buffer.BlockCopy(nonce, 0, payload, salt.Length, nonce.Length);
-                    Buffer.BlockCopy(tag, 0, payload, salt.Length + nonce.Length, tag.Length);
-                    Buffer.BlockCopy(cipherText, 0, payload, salt.Length + nonce.Length + tag.Length, cipherText.Length);
+                    Buffer.BlockCopy(salt, 0, returnValue, 0, salt.Length);
+                    Buffer.BlockCopy(nonce, 0, returnValue, salt.Length, nonce.Length);
+                    Buffer.BlockCopy(tag, 0, returnValue, salt.Length + nonce.Length, tag.Length);
+                    Buffer.BlockCopy(cipherText, 0, returnValue, salt.Length + nonce.Length + tag.Length, cipherText.Length);
+
+                    return (returnValue, password);
                 }
             }
             catch (Exception ex)
             {
                 throw new Exception("Error during encryption: " + ex.Message);
             }
-
-            AesRecord aesRecord = new AesRecord();
-            aesRecord.entropy = entropy;
-            aesRecord.nonce = nonce;
-            aesRecord.tag = tag;
-            aesRecord.cipherText = cipherText;
-            aesRecord.salt = salt;
-            aesRecord.password = password;
-            aesRecord.payload = payload;
-            
-            return aesRecord;
         }
 
-
-        public static byte[] Decrypt(string input, string password)
+        public static byte[] Decrypt(byte[] cipherText, string password)
         {
-            byte[] plainBytes;
-
             // Extract parameters
-            byte[] cipherText = Convert.FromBase64String(input);
-            byte[] salt = new byte[Argon2.SALT_SIZE_BYTES];
-            byte[] nonce = new byte[NONCE_SIZE_BYTES];
-            byte[] tag = new byte[TAG_SIZE_BYTES];
-            byte[] body = new byte[cipherText.Length - salt.Length - nonce.Length - tag.Length];
-
             try
             {
+                byte[] salt = new byte[Argon2.SALT_SIZE_BYTES];
+                byte[] nonce = new byte[NONCE_SIZE_BYTES];
+                byte[] tag = new byte[TAG_SIZE_BYTES];
+                byte[] body = new byte[cipherText.Length - salt.Length - nonce.Length - tag.Length];
+
                 Buffer.BlockCopy(cipherText, 0, salt, 0, salt.Length);
                 Buffer.BlockCopy(cipherText, salt.Length, nonce, 0, nonce.Length);
                 Buffer.BlockCopy(cipherText, salt.Length + nonce.Length, tag, 0, tag.Length);
@@ -158,16 +140,16 @@ namespace AESCrypto
                 using (var aes = new AesGcm(encryptionKey, TAG_SIZE_BYTES))
                 {
                     Console.WriteLine("Decrypting...");
-                    plainBytes = new byte[body.Length];
+                    byte[] plainBytes = new byte[body.Length];
                     aes.Decrypt(nonce, body, tag, plainBytes);
+
+                    return plainBytes;
                 }
             }
             catch (Exception ex)
             {
                 throw new Exception("Error during decryption: " + ex.Message);
             }
-
-            return plainBytes;
         }
     }
 }

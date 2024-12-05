@@ -20,8 +20,8 @@ namespace AESCrypto.Tests
         [TestMethod()]
         public void EncryptDecryptTestTextInput()
         {
-            AesRecord aesRecord = AESUtil.Encrypt(Encoding.UTF8.GetBytes(HELLO_WORLD_INPUT));
-            string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(Convert.ToBase64String(aesRecord.payload), aesRecord.password));
+            (byte[] cipherText, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(HELLO_WORLD_INPUT));
+            string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password));
             Assert.AreEqual(HELLO_WORLD_INPUT, decrypted);
         }
 
@@ -29,8 +29,8 @@ namespace AESCrypto.Tests
         public void EncryptDecryptTestUTF8Input()
         {
             // https://stackoverflow.com/questions/1319022/really-good-bad-utf-8-example-test-data
-            AesRecord aesRecord = AESUtil.Encrypt(Encoding.UTF8.GetBytes(UTF8_INPUT));
-            string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(Convert.ToBase64String(aesRecord.payload), aesRecord.password));
+            (byte[] cipherText, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(UTF8_INPUT));
+            string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password));
             Assert.AreEqual(UTF8_INPUT, decrypted);
         }
 
@@ -38,8 +38,8 @@ namespace AESCrypto.Tests
         public void EncryptDecryptTestUTF8InputLoremIpsumHomoglyphs()
         {
             // https://jeff.cis.cabrillo.edu/tools/homoglyphs
-            AesRecord aesRecord = AESUtil.Encrypt(Encoding.UTF8.GetBytes(UTF8_INPUT_WITH_HOMOGLYPHS));
-            string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(Convert.ToBase64String(aesRecord.payload), aesRecord.password));
+            (byte[] cipherText, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(UTF8_INPUT_WITH_HOMOGLYPHS));
+            string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, password));
             Assert.AreEqual(UTF8_INPUT_WITH_HOMOGLYPHS, decrypted);
         }
 
@@ -48,18 +48,18 @@ namespace AESCrypto.Tests
         {
             byte[] random = new byte[1024];
             RandomNumberGenerator.Fill(random);
-            AesRecord aesRecord = AESUtil.Encrypt(random);
-            byte[] decrypted = AESUtil.Decrypt(Convert.ToBase64String(aesRecord.payload), aesRecord.password);
+            (byte[] cipherText, string password) = AESUtil.Encrypt(random);
+            byte[] decrypted = AESUtil.Decrypt(cipherText, password);
             Assert.AreEqual(Convert.ToBase64String(random), Convert.ToBase64String(decrypted));
         }
 
         [TestMethod()]
         public void EncryptTestFail()
         {
-            AesRecord aesRecord = AESUtil.Encrypt(Encoding.UTF8.GetBytes(HELLO_WORLD_INPUT));
+            (byte[] cipherText, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(HELLO_WORLD_INPUT));
             try
             {
-                string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(Convert.ToBase64String(aesRecord.payload), "wrong_password"));
+                string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(cipherText, "wrong_password"));
             }
             catch (Exception ex)
             {
@@ -72,67 +72,94 @@ namespace AESCrypto.Tests
         [TestMethod()]
         public void EncryptTestUsingBouncyCastleAesGcm()
         {
-            // 0. Define an input string to be encrypted
-            // 1. Encrypt the input string using AESUtil.cs
+            // 1. Encrypt an input string using AESUtil.cs
             // 2. Encrypt the same input string using BouncyCastle
             // 3. Assert that output from step 1 == output from step 2
             // 4. Assert that BouncyCastle can successfully decrypt output from step 1
 
             // -----------------------------------------------------------------------
 
-            // Step 0
+            // Step 1. Encrypt the input string using AESUtil.cs
 
             const string plainText = UTF8_INPUT;
 
-            // Step 1. Encrypt the input string using AESUtil.cs
+            (byte[] encryptedOutputAesUtil, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(plainText));
 
-            AesRecord aesRecord = AESUtil.Encrypt(Encoding.UTF8.GetBytes(plainText));
+            (byte[] argon2Salt, byte[] aesGcmNonce, byte[] gcmTagAesUtil, byte[] cipherTextAesUtil) = ExtractAesUtilEncryptedOutputComponents(encryptedOutputAesUtil);
 
             // Step 2. Encrypt the same input string using BouncyCastle
 
-            var argon2 = new Argon2id(Encoding.UTF8.GetBytes(aesRecord.password))
-            {
-                Salt = aesRecord.salt,
-                DegreeOfParallelism = Argon2.DEGREE_OF_PARALLELLISM, // number of threads to use
-                MemorySize = Argon2.MEMORY_TO_USE_KILOBYTES, // 1 GB
-                Iterations = Argon2.NUMBER_OF_ITERATIONS
-            };
+            (byte[] cipherTextBouncyCastle, byte[] gcmTagBouncyCastle) = EncryptUsingBouncyCastleAesGcm(argon2Salt, aesGcmNonce, plainText, password);
 
-            byte[] key = argon2.GetBytes(32); // 32 bytes hash
-            byte[] nonce = aesRecord.nonce;  // 96-bit nonce
+            // 3. Assert that output from step 1 == output from step 2, i.e., AESUtil and BouncyCastle produce the same output given the same plaintext and key.
 
-            GcmBlockCipher cipher = new GcmBlockCipher(new AesEngine());
-            AeadParameters parameters = new AeadParameters(new KeyParameter(key), 128, nonce);
-            cipher.Init(true, parameters);
-
-            byte[] plaintextBytes = Encoding.UTF8.GetBytes(plainText);
-            byte[] ciphertextBytes = new byte[cipher.GetOutputSize(plaintextBytes.Length)];
-            int len = cipher.ProcessBytes(plaintextBytes, 0, plaintextBytes.Length, ciphertextBytes, 0);
-            cipher.DoFinal(ciphertextBytes, len);
-
-            byte[] ciphertext = ciphertextBytes.Take(ciphertextBytes.Length - 16).ToArray();
-            byte[] tag = ciphertextBytes.Skip(ciphertextBytes.Length - 16).Take(16).ToArray();
-            Console.WriteLine($"Ciphertext: {Convert.ToBase64String(ciphertext)}");
-            Console.WriteLine($"Tag: {Convert.ToBase64String(tag)}");
-
-            // 3. Assert that output from step 1 == output from step 2
-
-            Assert.IsTrue(aesRecord.cipherText.SequenceEqual(ciphertext));
-            Assert.IsTrue(aesRecord.tag.SequenceEqual(tag));
+            Assert.IsTrue(cipherTextAesUtil.SequenceEqual(cipherTextBouncyCastle));
+            Assert.IsTrue(gcmTagAesUtil.SequenceEqual(gcmTagBouncyCastle));
 
             // 4. Assert that BouncyCastle can successfully decrypt output from step 1
 
-            cipher = new GcmBlockCipher(new AesEngine());
-            parameters = new AeadParameters(new KeyParameter(key), 128, aesRecord.nonce);
-            cipher.Init(false, parameters);
+            GcmBlockCipher gcmBlockCipher = new GcmBlockCipher(new AesEngine());
+            byte[] key = Argon2.deriveEnryptionKey(password, argon2Salt);
+            AeadParameters parameters = new AeadParameters(new KeyParameter(key), 128, aesGcmNonce);
+            gcmBlockCipher.Init(false, parameters);
 
             // BounyCastle ciphertext includes the GCM tag, AESUTil.cs splits these into two, so we
             // concatenate them here for BouncyCastle.
-            byte[] cipherTextAndTag = aesRecord.cipherText.Concat(aesRecord.tag).ToArray();
-            plaintextBytes = new byte[cipher.GetOutputSize(cipherTextAndTag.Length)];
-            len = cipher.ProcessBytes(cipherTextAndTag, 0, cipherTextAndTag.Length, plaintextBytes, 0);
-            cipher.DoFinal(plaintextBytes, len);
-            Assert.IsTrue(Encoding.UTF8.GetString(plaintextBytes).TrimEnd('\0').SequenceEqual(plainText));
+            
+            byte[] cipherTextAndTag = cipherTextAesUtil.Concat(gcmTagAesUtil).ToArray();
+            byte[] plaintextBytes = new byte[gcmBlockCipher.GetOutputSize(cipherTextAndTag.Length)];
+            
+            int len = gcmBlockCipher.ProcessBytes(cipherTextAndTag, 0, cipherTextAndTag.Length, plaintextBytes, 0);
+            
+            gcmBlockCipher.DoFinal(plaintextBytes, len);
+            
+            string plainTextBouncyCastle = Encoding.UTF8.GetString(plaintextBytes).TrimEnd('\0');
+            
+            Assert.IsTrue(plainTextBouncyCastle.SequenceEqual(plainText));
+        }
+
+        private static (byte[] argon2Salt, byte[] aesGcmNonce, byte[] aesGcmTag, byte[] aesPureCipherText) ExtractAesUtilEncryptedOutputComponents(byte[] cipherTextAesUtil)
+        {
+            byte[] argon2Salt = new byte[Argon2.SALT_SIZE_BYTES];
+            Buffer.BlockCopy(cipherTextAesUtil, 0, argon2Salt, 0, argon2Salt.Length);
+
+            byte[] aesGcmNonce = new byte[AESUtil.NONCE_SIZE_BYTES];
+            Buffer.BlockCopy(cipherTextAesUtil, Argon2.SALT_SIZE_BYTES, aesGcmNonce, 0, aesGcmNonce.Length);
+
+            byte[] aesGcmTag = new byte[AESUtil.TAG_SIZE_BYTES];
+            Buffer.BlockCopy(cipherTextAesUtil, Argon2.SALT_SIZE_BYTES + AESUtil.NONCE_SIZE_BYTES, aesGcmTag, 0, aesGcmTag.Length);
+
+            byte[] aesPureCipherText = new byte[cipherTextAesUtil.Length - (Argon2.SALT_SIZE_BYTES + AESUtil.NONCE_SIZE_BYTES + AESUtil.TAG_SIZE_BYTES)];
+            Buffer.BlockCopy(cipherTextAesUtil, Argon2.SALT_SIZE_BYTES + AESUtil.NONCE_SIZE_BYTES + AESUtil.TAG_SIZE_BYTES, aesPureCipherText, 0, aesPureCipherText.Length);
+
+            return (argon2Salt, aesGcmNonce, aesGcmTag, aesPureCipherText);
+        }
+
+        private (byte[] cipherTextBouncyCastle, byte[] gcmTagBouncyCastle) EncryptUsingBouncyCastleAesGcm(byte[] argon2Salt, byte[] aesGcmNonce, string plainText, string password)
+        {
+            var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
+            argon2.Salt = argon2Salt;
+            argon2.DegreeOfParallelism = Argon2.DEGREE_OF_PARALLELLISM; // p
+            argon2.MemorySize = Argon2.MEMORY_TO_USE_KILOBYTES; // m
+            argon2.Iterations = Argon2.NUMBER_OF_ITERATIONS; // t
+
+            byte[] key = argon2.GetBytes(32); // 32 bytes hash
+
+            GcmBlockCipher cipher = new GcmBlockCipher(new AesEngine());
+            AeadParameters parameters = new AeadParameters(new KeyParameter(key), 128, aesGcmNonce);
+            cipher.Init(true, parameters);
+
+            byte[] plaintextBytes = Encoding.UTF8.GetBytes(plainText);
+            byte[] ciphertextBytesBouncyCastle = new byte[cipher.GetOutputSize(plaintextBytes.Length)];
+            int len = cipher.ProcessBytes(plaintextBytes, 0, plaintextBytes.Length, ciphertextBytesBouncyCastle, 0);
+            cipher.DoFinal(ciphertextBytesBouncyCastle, len);
+
+            byte[] cipherTextBouncyCastle = ciphertextBytesBouncyCastle.Take(ciphertextBytesBouncyCastle.Length - 16).ToArray();
+            byte[] gcmTagBouncyCastle = ciphertextBytesBouncyCastle.Skip(ciphertextBytesBouncyCastle.Length - 16).Take(16).ToArray();
+            Console.WriteLine($"Ciphertext: {Convert.ToBase64String(cipherTextBouncyCastle)}");
+            Console.WriteLine($"Tag: {Convert.ToBase64String(gcmTagBouncyCastle)}");
+
+            return (cipherTextBouncyCastle, gcmTagBouncyCastle);
         }
     }
 }

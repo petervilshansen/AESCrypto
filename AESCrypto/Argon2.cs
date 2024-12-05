@@ -1,17 +1,18 @@
 ﻿using Konscious.Security.Cryptography;
 using System;
 using System.Text;
+using System.Timers;
 
 namespace AESCrypto
 {
     public class Argon2
     {
-        public const int SALT_SIZE_BYTES = 16; // size in bytes; recommended size is 128 bits
-        public const int DEGREE_OF_PARALLELLISM = 4; // four cores; should be twice the amount of available CPU cores dedicated to hashing
-        public const int NUMBER_OF_ITERATIONS = 2; // two iterations
-        public const int MEMORY_TO_USE_KILOBYTES = 1048576; // in 1KB increments; 1048576 = 1 GB
+        public const int SALT_SIZE_BYTES = 16; // T = desired number of returned bytes; recommended size is 128 bits
+        public const int DEGREE_OF_PARALLELLISM = 1; // p = degree of parallellism; fixed at 1 for all recommendations I've seen
+        public const int NUMBER_OF_ITERATIONS = 4; // t = iterations
+        public const int MEMORY_TO_USE_KILOBYTES = 128*1024; // m = amount of memory, in 1KB increments.
 
-        internal static byte[] deriveEnryptionKey(string password, byte[] salt)
+        public static byte[] deriveEnryptionKey(string password, byte[] salt)
         {
             using var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
             argon2.Salt = salt;
@@ -20,7 +21,12 @@ namespace AESCrypto
             argon2.MemorySize = MEMORY_TO_USE_KILOBYTES;
 
             Console.WriteLine("Hashing password with Argon2id, this could take a moment...");
-            return argon2.GetBytes(AESUtil.KEY_SIZE_BYTES);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            byte[] derivedBytes = argon2.GetBytes(AESUtil.KEY_SIZE_BYTES);
+            watch.Stop();
+            var elapsedMs = watch.ElapsedMilliseconds;
+            Console.WriteLine("Argon2id completed in " +  elapsedMs + " milliseconds.");
+            return derivedBytes;
         }
     }
 }
