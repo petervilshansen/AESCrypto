@@ -131,7 +131,6 @@ namespace AESCrypto
               "    characters chosen from the pool of all printable ASCII characters except space (i.e., ASCII 33-126) is\n" +
               "    automatically generated using a cryptographically secure pseudo-random number generator. Further protection\n" +
               "    against brute-force attacks is achieved through use of the Argon2id key derivation function.\n" +
-              "    m="+Argon2.MEMORY_TO_USE_KILOBYTES+" KB, p="+Argon2.DEGREE_OF_PARALLELLISM+", and t="+Argon2.NUMBER_OF_ITERATIONS+", applied to the password prior to encryption.\n" +
               "\n" +
               "Data format:\n" +
               "    +------------------------------------------------------------------------------------------------+\n" +
@@ -139,7 +138,7 @@ namespace AESCrypto
               "    +------------------------------------------------------------------------------------------------+\n" +
               "\n" +
               "    All output data is Base64-encoded. Salt is input to Argon2id, nonce is used an initialisation vector for AES-GCM.\n" +
-              "    Argon2id parameters: Salt size = "+Argon2.SALT_SIZE_BYTES+", amount of memory = "+Argon2.MEMORY_TO_USE_KILOBYTES+" kilobytes, t = "+Argon2.DEGREE_OF_PARALLELLISM+", and p = "+Argon2.NUMBER_OF_ITERATIONS+".\n" +
+              "    Argon2id parameters: Salt size = "+Argon2.SALT_SIZE_BYTES+", amount of memory = "+Argon2.MEMORY_TO_USE_KILOBYTES+" kilobytes, p = "+Argon2.DEGREE_OF_PARALLELLISM+", and t = "+Argon2.NUMBER_OF_ITERATIONS+".\n" +
               "\n" +
               "Github:\n" +
               "    https://github.com/petervilshansen/AESCrypto" +
