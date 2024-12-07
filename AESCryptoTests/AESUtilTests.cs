@@ -137,7 +137,7 @@ namespace AESCrypto.Tests
 
         private (byte[] cipherTextBouncyCastle, byte[] gcmTagBouncyCastle) EncryptUsingBouncyCastleAesGcm(byte[] argon2Salt, byte[] aesGcmNonce, string plainText, string password)
         {
-            var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
+            var argon2 = new Argon2i(Encoding.UTF8.GetBytes(password));
             argon2.Salt = argon2Salt;
             argon2.DegreeOfParallelism = Argon2.DEGREE_OF_PARALLELLISM; // p
             argon2.MemorySize = Argon2.MEMORY_TO_USE_KILOBYTES; // m

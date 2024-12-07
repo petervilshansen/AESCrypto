@@ -1,31 +1,17 @@
 ﻿using System;
 using System.Security.Cryptography;
 using System.Text;
-using System.Linq;
-using System.Diagnostics.Metrics;
 
 namespace AESCrypto
 {
-    public record AesRecord()
-    {
-        public string password { get; set; }
-        public string plainText { get; set; }
-        public byte[] salt { get; set; }
-        public byte[] nonce { get; set; }
-        public byte[] tag { get; set; }
-        public byte[] cipherText { get; set; }
-        public int entropy { get; set; }
-        public byte[] payload { get; set; } // salt, nonce, ciphertext, and tag combined
-    }
-
     public static class AESUtil
     {
         public const int KEY_SIZE_BYTES = 32; // size in bytes = 256 bits
-        public const int PASSWORD_LENGTH = 40; // log2(94^40) = shortest password length that gives >= 256 bits of entropy
-        public const int ASCII_PRINTABLE_LOW_CHAR = 33;
-        public const int ASCII_NUM_PRINTABLE_CHARS = 93; // ASCII 33 -> 126
+        public const int PASSWORD_LENGTH = 25; // log2(31^25) = 123 bits
+        private const int PASSWORD_GROUP_LENGTH = 5;
         public static readonly int TAG_SIZE_BYTES = AesGcm.TagByteSizes.MaxSize;
         public static readonly int NONCE_SIZE_BYTES = AesGcm.NonceByteSizes.MaxSize; // Note: AesGcm.NonceByteSizes.MinSize == AesGcm.NonceByteSizes.MaxSize == 12 bytes.
+        private static readonly string PASSWORD_CHARACTER_POOL = "abcdefghjkmnpqrstuvwxyz23456789"; // Characters {a-z, 0-9}, excluding {i, l, o, 0, 1} for readability reasons. 31 characters total.
 
         /*
             How long should my password be? Read this post by Jeremi Gosney:
@@ -50,24 +36,21 @@ namespace AESCrypto
 
             In other words: Using a 16-character password (94^16, a number more than 700,000 times larger than 95^13)
             will not be broken in the foreseeable future. Using the same calculation as above, a random 16-character 
-            password (94^16) would take more than 1.2 billion years to crack, again not including the Argon2id hashing.
+            password (94^16) would take more than 1.2 billion years to crack, again not including the Argon2i hashing.
 
         */
-        internal static (string password, int entropy) CreatePasswordPrintableAscii()
+        internal static string CreateSecurePassword()
         {
-            // Create a pool of all printable ASCII characters, excluding space (ASCII 33 - ASCII 126).
-            var pool = Enumerable.Range(ASCII_PRINTABLE_LOW_CHAR, ASCII_NUM_PRINTABLE_CHARS).Select(x => (char)x).ToArray();
-            Console.WriteLine("Password character pool:");
-            Console.WriteLine(pool);
-
             var password = new StringBuilder();
             for (int i = 0; i < PASSWORD_LENGTH; i++)
             {
-                // Beware modulo bias!
-                password.Append(pool[RandomNumberGenerator.GetInt32(pool.Length)]);
+                // No modulo bias here!
+                if (i > 0 && i % PASSWORD_GROUP_LENGTH == 0)
+                    password.Append("-");
+                password.Append(PASSWORD_CHARACTER_POOL[RandomNumberGenerator.GetInt32(PASSWORD_CHARACTER_POOL.Length)]);
             }
 
-            return ( password.ToString(), (int)Math.Floor(Math.Log2(Math.Pow(pool.Length, password.Length))) );
+            return password.ToString();
         }
 
 
@@ -76,15 +59,13 @@ namespace AESCrypto
             if (plainText == null || plainText.Length == 0) { throw new Exception("Plaintext cannot be null or empty."); }
 
             string password;
-            int entropy;
 
             try
             {
                 // Encrypt
-                Console.WriteLine("Generating secure password...");
-                (password, entropy) = CreatePasswordPrintableAscii();
+                password = CreateSecurePassword();
 
-                Console.WriteLine("Automatically generated secure password (write this down): \n\n" + password + "\n\nEntropy: " + entropy + " bits.");
+                Console.WriteLine("Automatically generated secure password (write this down): " + password);
 
                 byte[] salt = RandomNumberGenerator.GetBytes(Argon2.SALT_SIZE_BYTES);
                 byte[] derivedKey = Argon2.deriveEnryptionKey(password, salt);
@@ -103,7 +84,7 @@ namespace AESCrypto
 
                     aes.Encrypt(nonce, plainText, cipherText, tag);
 
-                    // Encode to Base64 for easy transmission. Use Buffer.BlockCopy for best performance, according to https://code-maze.com/csharp-merge-arrays/
+                    // Use Buffer.BlockCopy for best performance, according to https://code-maze.com/csharp-merge-arrays/
                     byte[] returnValue = new byte[salt.Length + nonce.Length + cipherText.Length + tag.Length];
                     
                     Buffer.BlockCopy(salt, 0, returnValue, 0, salt.Length);

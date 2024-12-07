@@ -6,10 +6,61 @@ namespace AESCrypto
 {
     class Program
     {
+
+        internal const string usageText =
+            """
+            AESCrypto - Copyright (c) Peter Vils Hansen <peter.vils.hansen@outlook.com>
+            
+            Easily encrypt data with AES-AESUtil.KEY_SIZE_BYTES*8-GCM using cryptographically secure, random passwords. 
+ 
+            A secure password will be generated for you automatically. It is not possible to input your own password. 
+ 
+            Usage: 
+                Encrypt file 'secret.txt': AESCrypto -ef input.txt output.txt 
+                Decrypt file 'encrypted.json': AESCrypto -df encrypted.json decrypted.json 
+ 
+            Technical details: 
+                AESCrypto encrypts data using AES-256 bit encryption in GCM mode. A secure password is automatically 
+                generated using a cryptographically secure pseudo-random number generator. This password is then put
+                through the Argon2i key derivation function.
+ 
+            Data format: 
+                +------------------------------------------------------------------------------------------------+ 
+                | Salt (16 bytes) | Nonce (12 bytes) | Ciphertext (= input size) | Authentication tag (16 bytes) | 
+                +------------------------------------------------------------------------------------------------+ 
+ 
+            Example input (plaintext):
+
+                Password: 4y9zw-4mv3j-su33k-cfvpb-sacqr
+
+                00000000  54 68 65 20 4d 61 67 69  63 20 57 6f 72 64 73 20  |The Magic Words |
+                00000010  61 72 65 20 53 71 75 65  61 6d 69 73 68 20 4f 73  |are Squeamish Os|
+                00000020  73 69 66 72 61 67 65 0a                           |sifrage.|
+                00000028
+
+            Example output (ciphertext):
+
+                00000000  44 89 02 16 a4 4a 61 09  61 a0 06 e9 d0 85 15 1c  |D....Ja.a.......|
+                00000010  16 a4 a4 5f b7 7f 52 d2  13 c4 c6 50 fb e3 6a 95  |..._..R....P..j.|
+                00000020  56 79 80 64 cd 86 c1 14  e1 68 83 c1 12 8b 40 41  |Vy.d.....h....@A|
+                00000030  f7 41 1d b4 f4 64 73 84  d9 d1 91 c1 42 55 45 3e  |.A...ds.....BUE>|
+                00000040  d3 a2 e0 1f 31 5e 5e c9  46 ec 7c 53 6e 91 6d 6c  |....1^^.F.|Sn.ml|
+                00000050  82 72 5d 18                                       |.r].|
+
+                - Salt is {44 89 ... 15 1c} = 16 bytes.
+                - Nonce is {16 a4 ... c6 50} = 12 bytes.
+                - Ciphertext is {fb e3 ... e0 1f} = 40 bytes.
+                - Authentication tag is {31 5e ... 5d 18} = 16 bytes.
+
+                Salt is input to Argon2i, nonce is used an initialisation vector for AES-GCM.
+                Argon2i parameters: m = 65,536 kilobytes (128 MB), p = 1, and t = 2. 
+ 
+            Github: 
+                https://github.com/petervilshansen/AESCrypto 
+
+            """;
         static void Main(string[] args)
         {
-            PrintHeader();
-
             CheckCommandLineArguments(args);
 
             if (Console.IsInputRedirected)
@@ -22,12 +73,7 @@ namespace AESCrypto
 
             try
             {
-                if ("-ec".Equals(operation))
-                {
-                    string plainText = readInputFromConsole();
-                    EncryptConsoleInput(plainText);
-                }
-                else if ("-ef".Equals(operation))
+                if ("-ef".Equals(operation))
                 {
                     if (args.Length < 3 || string.IsNullOrEmpty(args[1]) || string.IsNullOrEmpty(args[2]))
                     {
@@ -36,11 +82,6 @@ namespace AESCrypto
                     string inputFileName = args[1];
                     string outputFileName = args[2];
                     EncryptFileInput(inputFileName, outputFileName);
-                }
-                else if ("-dc".Equals(operation))
-                {
-                    string cipherText = readInputFromConsole();
-                    DecryptConsoleInput(cipherText);
                 }
                 else if ("-df".Equals(operation))
                 {
@@ -65,7 +106,7 @@ namespace AESCrypto
 
         private static void DecryptFileInput(string inputFileName, string outputFileName, string password)
         {
-            byte[] decrypted = AESUtil.Decrypt(Convert.FromBase64String(File.ReadAllText(inputFileName)), password);
+            byte[] decrypted = AESUtil.Decrypt(File.ReadAllBytes(inputFileName), password);
             if (decrypted == null)
             {
                 return;
@@ -73,33 +114,10 @@ namespace AESCrypto
             File.WriteAllBytes(outputFileName, decrypted);
         }
 
-        private static void DecryptConsoleInput(string cipherText)
-        {
-            string password = readPassphraseFromConsole();
-            string decrypted = Encoding.UTF8.GetString(AESUtil.Decrypt(Convert.FromBase64String(cipherText), password));
-            if (string.IsNullOrEmpty(decrypted))
-            {
-                return;
-            }
-            Console.WriteLine();
-            Console.WriteLine("--- BEGIN DECRYPTED ---");
-            Console.WriteLine(decrypted);
-            Console.WriteLine("--- END DECRYPTED ---");
-        }
-
         private static void EncryptFileInput(string inputFileName, string outputFileName)
         {
             (byte[] cipherText, string password) = AESUtil.Encrypt(File.ReadAllBytes(inputFileName));
-            File.WriteAllText(outputFileName, Convert.ToBase64String(cipherText));
-        }
-
-        private static void EncryptConsoleInput(string plainText)
-        {
-            (byte[] cipherText, string password) = AESUtil.Encrypt(Encoding.UTF8.GetBytes(plainText));
-            Console.WriteLine();
-            Console.WriteLine("--- BEGIN ENCRYPTED ---");
-            Console.WriteLine(Convert.ToBase64String(cipherText));
-            Console.WriteLine("--- BEGIN ENCRYPTED ---");
+            File.WriteAllBytes(outputFileName, cipherText);
         }
 
         private static void CheckCommandLineArguments(string[] args)
@@ -109,41 +127,9 @@ namespace AESCrypto
             if (args.Length == 3 && !(args[0].ToLower().Equals("-ef") || args[0].ToLower().Equals("-df"))) PrintUsage();
         }
 
-        private static void PrintHeader() {
-            Console.WriteLine("\nAESCrypto - Copyright (c) Peter Vils Hansen <peter.vils.hansen@outlook.com>\n");
-        }
-
         private static void PrintUsage()
         {
-            Console.WriteLine(
-              "Easily encrypt data with AES-"+AESUtil.KEY_SIZE_BYTES*8+"-GCM using cryptographically secure, random passwords.\n" +
-              "\n" +
-              "A secure password will be generated for you automatically. It is not possible to input your own password.\n" +
-              "\n" +
-              "Usage:\n" +
-              "    Encrypt input from console: AESCrypto -ec\n" +
-              "    Decrypt input from console: AESCrypto -dc\n" +
-              "    Encrypt file 'secret.txt': AESCrypto -ef input.txt output.txt\n" +
-              "    Decrypt file 'encrypted.json': AESCrypto -df encrypted.json decrypted.json\n" +
-              "\n" +
-              "Technical details:\n" +
-              "    AESCrypto encrypts data using AES-"+AESUtil.KEY_SIZE_BYTES*8+" bit encryption in GCM mode. A password with\n" +
-              "    characters chosen from the pool of all printable ASCII characters except space (i.e., ASCII 33-126) is\n" +
-              "    automatically generated using a cryptographically secure pseudo-random number generator. Further protection\n" +
-              "    against brute-force attacks is achieved through use of the Argon2id key derivation function.\n" +
-              "\n" +
-              "Data format:\n" +
-              "    +------------------------------------------------------------------------------------------------+\n" +
-              "    | Salt ("+Argon2.SALT_SIZE_BYTES+" bytes) | Nonce ("+AESUtil.NONCE_SIZE_BYTES+" bytes) | Ciphertext (= input size) | Authentication tag ("+AESUtil.TAG_SIZE_BYTES+" bytes) |\n" +
-              "    +------------------------------------------------------------------------------------------------+\n" +
-              "\n" +
-              "    All output data is Base64-encoded. Salt is input to Argon2id, nonce is used an initialisation vector for AES-GCM.\n" +
-              "    Argon2id parameters: Salt size = "+Argon2.SALT_SIZE_BYTES+", amount of memory = "+Argon2.MEMORY_TO_USE_KILOBYTES+" kilobytes, p = "+Argon2.DEGREE_OF_PARALLELLISM+", and t = "+Argon2.NUMBER_OF_ITERATIONS+".\n" +
-              "\n" +
-              "Github:\n" +
-              "    https://github.com/petervilshansen/AESCrypto" +
-              "\n"
-              );
+            Console.WriteLine(usageText);
             Environment.Exit(0);
         }
 
@@ -172,25 +158,6 @@ namespace AESCrypto
             }
 
             return passPhrase;
-        }
-
-        static string readInputFromConsole()
-        {
-            Console.WriteLine("Input your message - press Return/Enter twice to finish...");
-            string line;
-            string input = "";
-            do
-            {
-                line = Console.ReadLine();
-                input += line;
-            } while (line != null && line.Length > 0);
-
-            if (string.IsNullOrEmpty(input))
-            {
-                throw new ArgumentException("Empty input -- aborting...");
-            }
-
-            return input;
         }
     }
 }
